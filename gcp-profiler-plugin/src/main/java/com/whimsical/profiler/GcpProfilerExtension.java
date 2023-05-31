@@ -7,5 +7,5 @@ import org.gradle.api.provider.Property;
  */
 public abstract class GcpProfilerExtension {
 
-    public abstract Property<String> getTarget();
+    public abstract Property<String> getDestination();
 }

@@ -3,7 +3,7 @@ package com.whimsical.profiler;
 import de.undercouch.gradle.tasks.download.Download;
 import java.io.File;
 import java.util.List;
-import java.util.function.Consumer;
+import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -23,39 +23,43 @@ public class GcpProfilerPlugin implements Plugin<Project> {
         // configure extension
         GcpProfilerExtension extension =
                 project.getExtensions().create("gcpProfilerConfig", GcpProfilerExtension.class);
-        extension.getTarget().convention("%s/docker".formatted(project.getProjectDir()));
+        extension.getDestination().convention("%s/docker".formatted(project.getProjectDir()));
 
         // configure download task
         TaskProvider<Download> download = project.getTasks().register("download", Download.class, task -> {
             task.src(PROFILER_SOURCE);
             task.dest("%s/profiler_java_agent.tar.gz"
-                    .formatted(extension.getTarget().get()));
-            task.onlyIf(a -> filePrecondition(extension.getTarget().get()));
+                    .formatted(extension.getDestination().get()));
+            task.onlyIf(a -> isFileMissing(extension.getDestination().get()));
         });
 
         // configure copy task
         TaskProvider<Copy> copy = project.getTasks().register("copy", Copy.class, task -> {
             task.dependsOn(download);
             task.from(project.tarTree(download.get().getDest()));
-            task.into(extension.getTarget().get());
-            task.doLast(a -> project.delete(List.of(
-                    "%s/profiler_java_agent.tar.gz"
-                            .formatted(extension.getTarget().get()),
-                    "%s/NOTICES".formatted(extension.getTarget().get()),
-                    "%s/version.txt".formatted(extension.getTarget().get()))));
-            task.onlyIf(a -> filePrecondition(extension.getTarget().get()));
+            task.into(extension.getDestination().get());
+            task.doLast(cleanupAfterDownload(extension.getDestination().get()));
+            task.onlyIf(a -> isFileMissing(extension.getDestination().get()));
         });
 
         // create custom task
-        project.afterEvaluate(p -> p.getTasks().register("downloadProfiler", task -> {
+        project.getTasks().register("downloadProfiler", task -> {
             task.setDescription("Downloads GCP profiler to a target folder.");
+            task.setGroup("Profiler");
             task.dependsOn(copy);
-        }));
+        });
     }
 
-    private boolean filePrecondition(String target) {
+    private boolean isFileMissing(String target) {
         File f = new File("%s/profiler_java_agent.so".formatted(target));
         return !f.isFile();
     }
 
+    private Action<Task> cleanupAfterDownload(String target) {
+        return task -> task.getProject()
+                .delete(List.of(
+                        "%s/profiler_java_agent.tar.gz".formatted(target),
+                        "%s/NOTICES".formatted(target),
+                        "%s/version.txt".formatted(target)));
+    }
 }
