@@ -5,7 +5,7 @@ import org.gradle.api.provider.Property;
 /**
  * @author jure.repe
  */
-abstract class GcpProfilerExtension {
+public abstract class GcpProfilerExtension {
 
-    abstract Property<String> target();
+    public abstract Property<String> getTarget();
 }
